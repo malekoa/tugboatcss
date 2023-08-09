@@ -13,7 +13,11 @@ func LexFileAtPath(path string) ([]string, error) {
 	if data, err := os.ReadFile(path); err != nil {
 		return nil, err
 	} else {
-		r := regexp.MustCompile(tokenRegex)
-		return r.FindAllString(string(data), -1), nil
+		return LexString(string(data))
 	}
+}
+
+func LexString(str string) ([]string, error) {
+	r := regexp.MustCompile(tokenRegex)
+	return r.FindAllString(str, -1), nil
 }
