@@ -18,7 +18,7 @@ type TugboatConfig struct {
 }
 
 func getConfig() *TugboatConfig {
-	file, err := os.ReadFile("./tugboatcss.config.json")
+	file, err := os.ReadFile("./tugboat.config.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -147,6 +147,21 @@ func main() {
 			{
 				Name:  "init",
 				Usage: "creates the default config file",
+				Action: func(ctx *cli.Context) error {
+					defaultPath := "./tugboat.config.json"
+					_, err := os.Stat(defaultPath)
+					if err == nil {
+						fmt.Println("config file already exists")
+					} else if os.IsNotExist(err) {
+						defaultConfig := []byte("{\n\t\"content\": [\"*.html\"]\n}")
+						err := os.WriteFile(defaultPath, defaultConfig, 0644)
+						if err != nil {
+							log.Fatal(err)
+						}
+						fmt.Println("Created default config file: ")
+					}
+					return nil
+				},
 			},
 		},
 	}
