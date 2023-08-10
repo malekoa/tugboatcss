@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	tokenRegex = "\\b([a-zA-Z0-9:-]+)\\b"
+	tokenRegex = "\\b([a-zA-Z0-9:/\\-.]+)\\b"
 )
 
 func LexFileAtPath(path string) ([]string, error) {

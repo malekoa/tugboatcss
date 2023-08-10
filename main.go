@@ -11,10 +11,12 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/gobwas/glob"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/exp/slices"
 )
 
 type TugboatConfig struct {
-	Content []string `json:"content,omitempty"`
+	GlobPattern []string `json:"globPattern,omitempty"`
+	IgnorePaths []string `json:"ignorePaths,omitempty"`
 }
 
 func getConfig() *TugboatConfig {
@@ -27,10 +29,10 @@ func getConfig() *TugboatConfig {
 	return &result
 }
 
-func getAllProjectDirectories() []string {
-	projectDirs := []string{"./"}
-	err := filepath.WalkDir("./", func(path string, d fs.DirEntry, err error) error {
-		if path[0] != 46 && d.IsDir() {
+func getAllProjectDirectories(tugboatConfig *TugboatConfig) []string {
+	projectDirs := []string{"."}
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if path[0] != 46 && d.IsDir() && !slices.Contains(tugboatConfig.IgnorePaths, d.Name()) {
 			projectDirs = append(projectDirs, path)
 		}
 		return nil
@@ -41,9 +43,9 @@ func getAllProjectDirectories() []string {
 	return projectDirs
 }
 
-func filePathMatchesGlobPattern(tugboatConfig *TugboatConfig, filePath string) bool {
+func FilePathMatchesGlobPattern(tugboatConfig *TugboatConfig, filePath string) bool {
 	matches := true
-	for _, globPattern := range tugboatConfig.Content {
+	for _, globPattern := range tugboatConfig.GlobPattern {
 		g := glob.MustCompile(globPattern)
 		if !g.Match(filePath) {
 			matches = false
@@ -53,19 +55,19 @@ func filePathMatchesGlobPattern(tugboatConfig *TugboatConfig, filePath string) b
 	return matches
 }
 
-func resetProjectDirectories(watcher *fsnotify.Watcher, projectDirs *[]string) error {
+func resetProjectDirectories(watcher *fsnotify.Watcher, projectDirs *[]string, tugboatConfig *TugboatConfig) error {
 	for _, path := range *projectDirs {
 		watcher.Remove(path)
 	}
-	updatedProjectDirectories := getAllProjectDirectories()
-	for _, path := range getAllProjectDirectories() {
+	updatedProjectDirectories := getAllProjectDirectories(tugboatConfig)
+	for _, path := range getAllProjectDirectories(tugboatConfig) {
 		watcher.Add(path)
 	}
 	*projectDirs = updatedProjectDirectories
 	return nil
 }
 
-func eventLoop(watcher *fsnotify.Watcher, tugboatConfig *TugboatConfig, projectDirs *[]string) {
+func eventLoop(watcher *fsnotify.Watcher, tugboatConfig *TugboatConfig, projectDirs *[]string, ctx *cli.Context) {
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -74,16 +76,17 @@ func eventLoop(watcher *fsnotify.Watcher, tugboatConfig *TugboatConfig, projectD
 			}
 			// log.Println("event: ", event)
 			if event.Has(fsnotify.Write) {
-				if filePathMatchesGlobPattern(tugboatConfig, event.Name) {
-					log.Printf("Modified watched file '%s' - Updating output...", event.Name)
-					// TODO: build output using files that match globPattern in projectdirs
+				if FilePathMatchesGlobPattern(tugboatConfig, event.Name) {
+					output, timeDiff := Generate(tugboatConfig, projectDirs, ctx)
+					os.WriteFile(ctx.String("output"), []byte(output), 0644)
+					log.Printf("Modified watched file '%s' - Updated output in %d ms", event.Name, timeDiff)
 				}
 			}
 			if event.Has(fsnotify.Create) {
 				// A new directory may have been added. Should remove all current
 				// watched directories and get all new project directories
-				resetProjectDirectories(watcher, projectDirs)
-				fmt.Println("Detected filesystem change, now watching directories: ", *projectDirs)
+				resetProjectDirectories(watcher, projectDirs, tugboatConfig)
+				fmt.Println("Detected filesystem change, watching directories: ", *projectDirs)
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -104,10 +107,13 @@ func watch(ctx *cli.Context) error {
 	}
 	defer watcher.Close()
 
-	go eventLoop(watcher, tugboatConfig, &projectDirs)
+	go eventLoop(watcher, tugboatConfig, &projectDirs, ctx)
 
-	projectDirs = getAllProjectDirectories()
+	projectDirs = getAllProjectDirectories(tugboatConfig)
 	fmt.Println("Watching directories: ", projectDirs)
+	output, timeDiff := Generate(tugboatConfig, &projectDirs, ctx)
+	os.WriteFile(ctx.String("output"), []byte(output), 0644)
+	log.Printf("Generated initial output in %d ms\n", timeDiff)
 	for _, path := range projectDirs {
 		err = watcher.Add(path)
 		if err != nil {
@@ -141,6 +147,11 @@ func main() {
 						Name:    "output",
 						Aliases: []string{"o"},
 						Value:   "./out.css",
+					},
+					&cli.StringFlag{
+						Name:    "input",
+						Aliases: []string{"i"},
+						Value:   "",
 					},
 				},
 			},
