@@ -16,7 +16,7 @@ import (
 
 type TugboatConfig struct {
 	GlobPattern []string `json:"globPattern,omitempty"`
-	IgnorePaths []string `json:"ignorePaths,omitempty"`
+	Ignore      []string `json:"ignore,omitempty"`
 }
 
 func getConfig() *TugboatConfig {
@@ -32,7 +32,7 @@ func getConfig() *TugboatConfig {
 func getAllProjectDirectories(tugboatConfig *TugboatConfig) []string {
 	projectDirs := []string{"."}
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if path[0] != 46 && d.IsDir() && !slices.Contains(tugboatConfig.IgnorePaths, d.Name()) {
+		if path[0] != 46 && d.IsDir() && !slices.Contains(tugboatConfig.Ignore, d.Name()) {
 			projectDirs = append(projectDirs, path)
 		}
 		return nil
@@ -164,7 +164,7 @@ func main() {
 					if err == nil {
 						fmt.Println("config file already exists")
 					} else if os.IsNotExist(err) {
-						defaultConfig := []byte("{\n\t\"content\": [\"*.html\"]\n}")
+						defaultConfig := []byte("{\n\t\"globPattern\": [\"*.html\"],\n\t\"ignore\": [\"node_modules\"]\n}")
 						err := os.WriteFile(defaultPath, defaultConfig, 0644)
 						if err != nil {
 							log.Fatal(err)
