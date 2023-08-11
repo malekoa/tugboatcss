@@ -139,6 +139,5 @@ func Generate(tugboatConfig *TugboatConfig, projectDirs *[]string, ctx *cli.Cont
 	supportedRules := getAllSupportedRules(lexemes)
 
 	timeDiff := time.Since(startTime).Milliseconds()
-	// fmt.Println(supportedRules)
 	return buildOutput(supportedRules, ctx), timeDiff
 }

@@ -7,11 +7,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gobwas/glob"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/slices"
 )
 
 type TugboatConfig struct {
@@ -32,7 +32,12 @@ func getConfig() *TugboatConfig {
 func getAllProjectDirectories(tugboatConfig *TugboatConfig) []string {
 	projectDirs := []string{"."}
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if path[0] != 46 && d.IsDir() && !slices.Contains(tugboatConfig.Ignore, d.Name()) {
+		for _, ignorePath := range tugboatConfig.Ignore {
+			if strings.Contains(path, ignorePath) {
+				return nil
+			}
+		}
+		if path[0] != 46 && d.IsDir() {
 			projectDirs = append(projectDirs, path)
 		}
 		return nil
