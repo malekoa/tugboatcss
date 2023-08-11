@@ -1,18 +1,21 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 )
 
 const (
-	tokenRegex = "\\b([a-zA-Z0-9:/\\-.]+)\\b"
+	tokenRegex = "([a-zA-Z0-9:/\\-.]+)"
 )
 
 func LexFileAtPath(path string) ([]string, error) {
 	if data, err := os.ReadFile(path); err != nil {
 		return nil, err
 	} else {
+		s, _ := LexString(string(data))
+		fmt.Println("Lexed String: ", s)
 		return LexString(string(data))
 	}
 }
